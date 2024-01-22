@@ -98,7 +98,7 @@ pub trait ManageConnection: Send + Sync + 'static {
 /// A trait which handles errors reported by the `ManageConnection`.
 pub trait HandleError<E>: fmt::Debug + Send + Sync + 'static {
     /// Handles an error.
-    fn handle_error(&self, error: E);
+    fn handle_error(&self, error: E) -> std::ops::ControlFlow<()>;
 }
 
 /// A `HandleError` implementation which does nothing.
@@ -106,7 +106,9 @@ pub trait HandleError<E>: fmt::Debug + Send + Sync + 'static {
 pub struct NopErrorHandler;
 
 impl<E> HandleError<E> for NopErrorHandler {
-    fn handle_error(&self, _: E) {}
+    fn handle_error(&self, _: E) -> std::ops::ControlFlow<()> {
+        std::ops::ControlFlow::Continue(())
+    }
 }
 
 /// A `HandleError` implementation which logs at the error level.
@@ -117,8 +119,9 @@ impl<E> HandleError<E> for LoggingErrorHandler
 where
     E: error::Error,
 {
-    fn handle_error(&self, error: E) {
+    fn handle_error(&self, error: E) -> std::ops::ControlFlow<()> {
         error!("{}", error);
+        std::ops::ControlFlow::Continue(())
     }
 }
 
