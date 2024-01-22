@@ -410,7 +410,9 @@ where
 
         let initial_size = self.0.config.min_idle.unwrap_or(self.0.config.max_size);
 
+        info!("Waiting for initialization");
         while internals.num_conns != initial_size {
+            info!("Waiting for initialization. Iteration.");
             if self.0.cond.wait_until(&mut internals, end).timed_out() {
                 return Err(Error(internals.last_error.take()));
             } else if self.0.internals.lock().last_error_fatal {
