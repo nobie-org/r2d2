@@ -278,7 +278,7 @@ where
                     shared.internals.lock().last_error = Some(err.to_string());
                     if shared.config.error_handler.handle_error(err).is_break() {
                         shared.internals.lock().last_error_fatal = true;
-                        shared.cond.notify_all();
+                        shared.cond.notify_one();
                         error!("Fatal error encountered while adding connection");
                         return;
                     }
@@ -410,13 +410,9 @@ where
 
         let initial_size = self.0.config.min_idle.unwrap_or(self.0.config.max_size);
 
-        info!("Waiting for initialization");
         while internals.num_conns != initial_size {
-            info!("Waiting for initialization. Iteration.");
-            if self.0.cond.wait_until(&mut internals, end).timed_out() {
-                return Err(Error(internals.last_error.take()));
-            } else if self.0.internals.lock().last_error_fatal {
-                error!("Fatal error encountered while getting connection. Done waiting for initialization.");
+            if self.0.cond.wait_until(&mut internals, end).timed_out() || internals.last_error_fatal
+            {
                 return Err(Error(internals.last_error.take()));
             }
         }
@@ -459,10 +455,8 @@ where
             if self.0.cond.wait_until(&mut internals, end).timed_out() {
                 let event = TimeoutEvent { timeout };
                 self.0.config.event_handler.handle_timeout(event);
-
                 return Err(Error(internals.last_error.take()));
             } else if internals.last_error_fatal {
-                error!("Fatal error encountered while getting connection");
                 return Err(Error(internals.last_error.take()));
             }
         }
