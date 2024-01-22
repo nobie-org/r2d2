@@ -41,6 +41,7 @@
 
 use log::error;
 
+use log::info;
 use parking_lot::{Condvar, Mutex, MutexGuard};
 use std::cmp;
 use std::error;
@@ -173,6 +174,7 @@ struct PoolInternals<C> {
     num_conns: u32,
     pending_conns: u32,
     last_error: Option<String>,
+    last_error_fatal: bool,
 }
 
 struct SharedPool<M>
@@ -275,6 +277,7 @@ where
                 Err(err) => {
                     shared.internals.lock().last_error = Some(err.to_string());
                     if shared.config.error_handler.handle_error(err).is_break() {
+                        shared.internals.lock().last_error_fatal = true;
                         shared.cond.notify_all();
                         error!("Fatal error encountered while adding connection");
                         return;
@@ -373,6 +376,7 @@ where
             num_conns: 0,
             pending_conns: 0,
             last_error: None,
+            last_error_fatal: false,
         };
 
         let shared = Arc::new(SharedPool {
@@ -382,7 +386,12 @@ where
             cond: Condvar::new(),
         });
 
+        info!(
+            "establishing {} connections",
+            shared.config.min_idle.unwrap_or(0)
+        );
         establish_idle_connections(&shared, &mut shared.internals.lock());
+        // info!()
 
         if shared.config.max_lifetime.is_some() || shared.config.idle_timeout.is_some() {
             let s = Arc::downgrade(&shared);
@@ -403,6 +412,9 @@ where
 
         while internals.num_conns != initial_size {
             if self.0.cond.wait_until(&mut internals, end).timed_out() {
+                return Err(Error(internals.last_error.take()));
+            } else if self.0.internals.lock().last_error_fatal {
+                error!("Fatal error encountered while getting connection. Done waiting for initialization.");
                 return Err(Error(internals.last_error.take()));
             }
         }
@@ -446,6 +458,9 @@ where
                 let event = TimeoutEvent { timeout };
                 self.0.config.event_handler.handle_timeout(event);
 
+                return Err(Error(internals.last_error.take()));
+            } else if internals.last_error_fatal {
+                error!("Fatal error encountered while getting connection");
                 return Err(Error(internals.last_error.take()));
             }
         }
