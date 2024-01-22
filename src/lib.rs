@@ -275,6 +275,7 @@ where
                 Err(err) => {
                     shared.internals.lock().last_error = Some(err.to_string());
                     if shared.config.error_handler.handle_error(err).is_break() {
+                        shared.cond.notify_all();
                         error!("Fatal error encountered while adding connection");
                         return;
                     }
