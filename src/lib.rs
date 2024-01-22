@@ -275,7 +275,7 @@ where
                 Err(err) => {
                     shared.internals.lock().last_error = Some(err.to_string());
                     if shared.config.error_handler.handle_error(err).is_break() {
-                        error!("Fatal error encountered while adding connection: {}", error);
+                        error!("Fatal error encountered while adding connection");
                         return;
                     }
                     let delay = cmp::max(Duration::from_millis(200), delay);
