@@ -274,7 +274,9 @@ where
                 }
                 Err(err) => {
                     shared.internals.lock().last_error = Some(err.to_string());
-                    shared.config.error_handler.handle_error(err);
+                    if shared.config.error_handler.handle_error(err).is_break() {
+                        return;
+                    }
                     let delay = cmp::max(Duration::from_millis(200), delay);
                     let delay = cmp::min(shared.config.connection_timeout / 2, delay * 2);
                     inner(delay, &shared);
